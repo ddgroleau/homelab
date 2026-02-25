@@ -1,0 +1,14 @@
+- name: Install containerd on all hosts
+  hosts: all
+  become: true
+  tasks:
+    - name: Install containerd
+      ansible.builtin.apt:
+        name: containerd
+        state: present
+        update_cache: true
+    - name: Enable containerd service
+      ansible.builtin.service:
+        name: containerd
+        enabled: true
+        state: started

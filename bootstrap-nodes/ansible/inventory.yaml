@@ -1,0 +1,23 @@
+master:
+  hosts:
+    controlplane:
+      ansible_host: controlplane
+      ansible_user: controlplane
+
+workers:
+  hosts:
+    worker01:
+      ansible_host: worker01
+      ansible_user: worker01
+    worker02:
+      ansible_host: worker02
+      ansible_user: worker02
+    worker03:
+      ansible_host: worker03
+      ansible_user: worker03
+    worker04:
+      ansible_host: worker04
+      ansible_user: worker04
+    worker05:
+      ansible_host: worker05
+      ansible_user: worker05

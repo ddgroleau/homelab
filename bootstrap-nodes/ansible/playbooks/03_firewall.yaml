@@ -1,0 +1,56 @@
+- name: Install UFW on all hosts
+  hosts: all
+  become: true
+  tasks:
+    - name: Install UFW
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+        update_cache: true
+    - name: UFW - Allow SSH connections
+      community.general.ufw:
+        rule: allow
+        name: OpenSSH
+        state: enabled
+
+- name: Open TCP Ports on ControlPlane
+  hosts: master
+  become: true
+  tasks:
+    - name: UFW - Allow TCP ports 6443, 2379-2380, 10250, 10259, 10257
+      community.general.ufw:
+        rule: allow
+        port: "6443,2379:2380,10250,10259,10257"
+        proto: tcp
+
+- name: Open TCP Ports on Worker Nodes
+  hosts: workers
+  become: true
+  tasks:
+    - name: UFW - Allow TCP ports 10250, 10256, 30000-32767
+      community.general.ufw:
+        rule: allow
+        port: "10250,30000:32767"
+        proto: tcp
+
+- name: Open UDP Ports on Worker Nodes
+  hosts: workers
+  become: true
+  tasks:
+    - name: UFW - Allow UDP ports 30000-32767
+      community.general.ufw:
+        rule: allow
+        port: "30000:32767"
+        proto: udp
+
+- name: Verify UFW Status
+  hosts: all
+  become: true
+  tasks:
+    - name: Check UFW status
+      ansible.builtin.command: ufw status verbose
+      register: ufw_status
+      changed_when: false
+    - name: Display UFW status
+      ansible.builtin.debug:
+        var: ufw_status.stdout_lines
