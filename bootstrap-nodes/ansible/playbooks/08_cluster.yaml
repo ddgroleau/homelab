@@ -1,0 +1,158 @@
+- name: Initialize Kubernetes Cluster
+  hosts: all
+  become: true
+
+  vars:
+    control_plane_endpoint: "192.168.4.35"
+    pod_network_cidr: "192.168.0.0/16"
+    calico_version: "v3.31.4"
+
+  tasks:
+    - name: Set hostnames
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Ensure all nodes are resolvable in /etc/hosts
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ item }}"
+        state: present
+      loop: "{{ groups['all'] }}"
+
+    - name: Check if cluster is initialized
+      when: "'master' in group_names"
+      ansible.builtin.stat:
+        path: /etc/kubernetes/admin.conf
+      register: kubeadm_init_state
+
+    - name: Reset kubeadm if cluster exists
+      when:
+        - "'master' in group_names"
+        - kubeadm_init_state.stat.exists
+      changed_when: false
+      ansible.builtin.command: kubeadm reset -f
+
+    - name: Remove root .kube config if cluster exists
+      when:
+        - "'master' in group_names"
+        - kubeadm_init_state.stat.exists
+      ansible.builtin.file:
+        path: /root/.kube/config
+        state: absent
+
+    - name: Restart kubelet
+      when:
+        - "'master' in group_names"
+        - kubeadm_init_state.stat.exists
+      ansible.builtin.service:
+        name: kubelet
+        state: restarted
+
+    - name: Restart containerd
+      when:
+        - "'master' in group_names"
+        - kubeadm_init_state.stat.exists
+      ansible.builtin.service:
+        name: containerd
+        state: restarted
+
+    - name: Ensure containerd config directory exists
+      ansible.builtin.file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+
+    - name: Generate default containerd config
+      changed_when: false
+      ansible.builtin.command: containerd config default
+      register: containerd_default_config
+
+    - name: Write containerd config to /etc/containerd/config.toml
+      ansible.builtin.copy:
+        content: "{{ containerd_default_config.stdout }}"
+        dest: /etc/containerd/config.toml
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Initialize Kubernetes cluster with kubeadm
+      when: "'master' in group_names"
+      ansible.builtin.shell: >
+        kubeadm init
+        --pod-network-cidr="{{ pod_network_cidr }}"
+        --apiserver-advertise-address="{{ control_plane_endpoint }}"
+      args:
+        creates: "/etc/kubernetes/admin.conf"
+
+    - name: Ensure kubeconfig directory exists
+      when: "'master' in group_names"
+      ansible.builtin.file:
+        path: /root/.kube
+        state: directory
+        mode: '0700'
+
+    - name: Copy kubeconfig for kubectl
+      when: "'master' in group_names"
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: true
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
+
+    - name: Generate kubeadm join command
+      when: "'master' in group_names"
+      changed_when: false
+      ansible.builtin.shell: |
+        kubeadm token create --print-join-command
+      register: join_command
+
+    - name: Print worker join command
+      when: "'master' in group_names"
+      ansible.builtin.debug:
+        var: join_command
+
+    - name: Copy kubeconfig to control node (dev machine)
+      when: "'master' in group_names"
+      ansible.builtin.fetch:
+        src: /etc/kubernetes/admin.conf
+        dest: ~/.kube/homelab_kubeconfig.yaml
+        flat: true
+
+    - name: Install the Tigera Operator and custom resource definitions
+      when: "'master' in group_names"
+      changed_when: false
+      ansible.builtin.shell: >
+        kubectl apply -f
+        https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/tigera-operator.yaml
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: Install Calico CNI
+      when: "'master' in group_names"
+      changed_when: false
+      ansible.builtin.shell: >
+        kubectl apply -f
+        https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/custom-resources.yaml
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: Wait for Calico pods to be running
+      when: "'master' in group_names"
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: calico-system
+      register: calico_pods
+      until: calico_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length >= 3
+      retries: 10
+      delay: 10
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: Join worker nodes
+      when: "'workers' in group_names"
+      ansible.builtin.shell: >
+        {{ hostvars[groups['master'][0]].join_command.stdout }}
+      args:
+        creates: /etc/kubernetes/kubelet.conf

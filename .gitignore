@@ -1,5 +1,4 @@
-**/netplan/*.yaml
-.venv/*
-.vscode/*
-.ansible/*
-**/ansible/artifacts/*
+.venv
+.vscode
+.ansible
+**/ansible/artifacts
