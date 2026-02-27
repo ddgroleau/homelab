@@ -1,3 +1,15 @@
+#########################################################################################
+# 08_cluster.yaml
+#
+# This playbook initializes the Kubernetes cluster using kubeadm and sets up Calico CNI.
+# I've tried to make it as idempotent as possible;
+# There are many different configs being created across all the nodes
+# So it is possible that stale configs cause issues when running multiple times
+# You see this in this file - I use many different tasks to clean up state
+# Some of those tasks may be redundant or uneccessesary - this is a TODO
+#
+#########################################################################################
+
 - name: Initialize Kubernetes Cluster
   hosts: all
   become: true
@@ -32,12 +44,12 @@
       changed_when: false
       ansible.builtin.command: kubeadm reset -f
 
-    - name: Remove root .kube config if cluster exists
+    - name: Remove CNI directories if cluster exists
       when:
         - "'master' in group_names"
         - kubeadm_init_state.stat.exists
       ansible.builtin.file:
-        path: /root/.kube/config
+        path: /etc/cni/net.d
         state: absent
 
     - name: Restart kubelet
@@ -46,14 +58,6 @@
         - kubeadm_init_state.stat.exists
       ansible.builtin.service:
         name: kubelet
-        state: restarted
-
-    - name: Restart containerd
-      when:
-        - "'master' in group_names"
-        - kubeadm_init_state.stat.exists
-      ansible.builtin.service:
-        name: containerd
         state: restarted
 
     - name: Ensure containerd config directory exists
@@ -74,6 +78,31 @@
         owner: root
         group: root
         mode: '0644'
+        force: true
+
+    - name: Set SystemdCgroup to true
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+
+    - name: Replace CNI bin_dir path
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        regexp: 'bin_dir = "/usr/lib/cni"'
+        replace: 'bin_dir = "/opt/cni/bin"'
+
+    - name: Set correct sandbox image
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        regexp: 'sandbox_image = ".*"'
+        replace: 'sandbox_image = "registry.k8s.io/pause:3.10.1"'
+
+    - name: Restart containerd
+      changed_when: false
+      ansible.builtin.service:
+        name: containerd
+        state: restarted
 
     - name: Initialize Kubernetes cluster with kubeadm
       when: "'master' in group_names"
@@ -84,29 +113,14 @@
       args:
         creates: "/etc/kubernetes/admin.conf"
 
-    - name: Ensure kubeconfig directory exists
-      when: "'master' in group_names"
-      ansible.builtin.file:
-        path: /root/.kube
-        state: directory
-        mode: '0700'
-
-    - name: Copy kubeconfig for kubectl
-      when: "'master' in group_names"
-      ansible.builtin.copy:
-        src: /etc/kubernetes/admin.conf
-        dest: /root/.kube/config
-        remote_src: true
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-        mode: '0600'
-
     - name: Generate kubeadm join command
       when: "'master' in group_names"
       changed_when: false
       ansible.builtin.shell: |
         kubeadm token create --print-join-command
       register: join_command
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
 
     - name: Print worker join command
       when: "'master' in group_names"
@@ -127,7 +141,19 @@
         kubectl apply -f
         https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/tigera-operator.yaml
       environment:
-        KUBECONFIG: /root/.kube/config
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Wait for Installation CRD to be registered
+      ansible.builtin.shell: >
+        kubectl get crd installations.operator.tigera.io
+      when: "'master' in group_names"
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: crd_check
+      retries: 20
+      delay: 15
+      until: crd_check.rc == 0
+      changed_when: false
 
     - name: Install Calico CNI
       when: "'master' in group_names"
@@ -136,19 +162,19 @@
         kubectl apply -f
         https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/custom-resources.yaml
       environment:
-        KUBECONFIG: /root/.kube/config
+        KUBECONFIG: /etc/kubernetes/admin.conf
 
-    - name: Wait for Calico pods to be running
-      when: "'master' in group_names"
-      kubernetes.core.k8s_info:
-        kind: Pod
-        namespace: calico-system
-      register: calico_pods
-      until: calico_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length >= 3
-      retries: 10
-      delay: 10
-      environment:
-        KUBECONFIG: /root/.kube/config
+    - name: Remove stale kubelet.conf
+      when: "'workers' in group_names"
+      ansible.builtin.file:
+        path: /etc/kubernetes/kubelet.conf
+        state: absent
+
+    - name: Reset kubeadm on worker nodes if already joined
+      when:
+        - "'workers' in group_names"
+      changed_when: false
+      ansible.builtin.command: kubeadm reset -f
 
     - name: Join worker nodes
       when: "'workers' in group_names"
@@ -156,3 +182,10 @@
         {{ hostvars[groups['master'][0]].join_command.stdout }}
       args:
         creates: /etc/kubernetes/kubelet.conf
+
+    # Containerd needs to be restarted on worker nodes after join to ensure the new CNI configuration is picked up
+    - name: Restart containerd on worker nodes after join
+      when: "'workers' in group_names"
+      ansible.builtin.service:
+        name: containerd
+        state: restarted
