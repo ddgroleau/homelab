@@ -2,4 +2,3 @@
 .vscode
 .ansible
 **/ansible/artifacts
-kubeadm_join.sh

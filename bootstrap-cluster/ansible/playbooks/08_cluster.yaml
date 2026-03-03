@@ -1,22 +1,10 @@
-#########################################################################################
-# 08_cluster.yaml
-#
-# This playbook initializes the Kubernetes cluster using kubeadm and sets up Calico CNI.
-# I've tried to make it as idempotent as possible;
-# There are many different configs being created across all the nodes
-# So it is possible that stale configs cause issues when running multiple times
-# You see this in this file - I use many different tasks to clean up state
-# Some of those tasks may be redundant or uneccessesary - this is a TODO
-#
-#########################################################################################
-
 - name: Initialize Kubernetes Cluster
   hosts: all
   become: true
 
   vars:
     control_plane_endpoint: "192.168.4.35"
-    pod_network_cidr: "192.168.0.0/16"
+    pod_network_cidr: "10.244.0.0/16"
     calico_version: "v3.31.4"
 
   tasks:
@@ -31,31 +19,16 @@
         state: present
       loop: "{{ groups['all'] }}"
 
-    - name: Check if cluster is initialized
-      when: "'master' in group_names"
-      ansible.builtin.stat:
-        path: /etc/kubernetes/admin.conf
-      register: kubeadm_init_state
-
-    - name: Reset kubeadm if cluster exists
-      when:
-        - "'master' in group_names"
-        - kubeadm_init_state.stat.exists
+    - name: Reset kubeadm
       changed_when: false
       ansible.builtin.command: kubeadm reset -f
 
     - name: Remove CNI directories if cluster exists
-      when:
-        - "'master' in group_names"
-        - kubeadm_init_state.stat.exists
       ansible.builtin.file:
         path: /etc/cni/net.d
         state: absent
 
     - name: Restart kubelet
-      when:
-        - "'master' in group_names"
-        - kubeadm_init_state.stat.exists
       ansible.builtin.service:
         name: kubelet
         state: restarted
@@ -164,17 +137,35 @@
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
 
-    - name: Remove stale kubelet.conf
-      when: "'workers' in group_names"
-      ansible.builtin.file:
-        path: /etc/kubernetes/kubelet.conf
-        state: absent
-
-    - name: Reset kubeadm on worker nodes if already joined
-      when:
-        - "'workers' in group_names"
-      changed_when: false
-      ansible.builtin.command: kubeadm reset -f
+    # Default Calico installation uses 192.168.0.0/16 CIDR for pods
+    # This conflicts with node IPs on my home network (192.168.x.x)
+    # We must patch the Calico installation to use the correct CIDR for the pod network
+    - name: Patch Calico Installation CIDR with POD Network CIDR
+      when: "'master' in group_names"
+      changed_when: "'patched' in calico_patch.stdout"
+      ansible.builtin.shell: |
+        kubectl patch installation default \
+          --type merge \
+          -p '{
+            "spec": {
+              "calicoNetwork": {
+                "ipPools": [
+                  {
+                    "name": "default-ipv4-ippool",
+                    "cidr": "{{ pod_network_cidr }}",
+                    "blockSize": 26,
+                    "encapsulation": "VXLANCrossSubnet",
+                    "natOutgoing": "Enabled",
+                    "nodeSelector": "all()",
+                    "disableBGPExport": false
+                  }
+                ]
+              }
+            }
+          }'
+      register: calico_patch
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
 
     - name: Join worker nodes
       when: "'workers' in group_names"
@@ -182,10 +173,3 @@
         {{ hostvars[groups['master'][0]].join_command.stdout }}
       args:
         creates: /etc/kubernetes/kubelet.conf
-
-    # Containerd needs to be restarted on worker nodes after join to ensure the new CNI configuration is picked up
-    - name: Restart containerd on worker nodes after join
-      when: "'workers' in group_names"
-      ansible.builtin.service:
-        name: containerd
-        state: restarted
