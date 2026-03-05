@@ -2,28 +2,32 @@ import glob
 import os
 from simple_term_menu import TerminalMenu
 import requests
-import json as JSON
+import shelve
 
 class Article:
     def __init__(self, article_file:str):
         self.filename:str = article_file
         self.id:int = None
         article_path = os.path.join(os.path.dirname(__file__), article_file)
+
         with open(article_path, "r") as file_stream:
             self.title :str = file_stream.readline()
             self.contents :str = file_stream.read().replace(self.title, "")
-        with open("publish_log.json", "r") as publish_log:
-            publish_log_json = JSON.loads(publish_log.read())
-            existing_publish = publish_log_json.get(article_file)
-            if existing_publish:
-                self.id = existing_publish["id"]
+
+        with shelve.open("publish_log") as publish_log:
+            publish_id = publish_log.get(article_file, None)
+            if publish_id is not None:
+                self.id = publish_id
 
     def publish_to_dev(self) -> requests.Response:
-        exists = self.id != None
+        exists = self.id is not None
         api_uri = "https://dev.to/api/articles"
+        
         if exists:
             api_uri += f"/{self.id}"
+        
         api_key = os.getenv("FOREM_API_KEY")
+        
         headers = {
             "accept": "application/vnd.forem.api-v1+json",
             "api-key": api_key
@@ -38,6 +42,7 @@ class Article:
             }
         }
         response : requests.Response = None
+        
         if exists:
             print("Updating article...")
             response = requests.put(api_uri, json=data, headers=headers)
@@ -57,35 +62,26 @@ class Article:
         url = json["url"]
         verb = "updated" if self.id else "published"
         print(f"Article {id} {verb} successfully! Read it at {url}")
-        # Update the publish log with the article's ID and URL
-        with open("publish_log.json", "r+") as publish_log:
-            contents = JSON.loads(publish_log.read())
-            contents[self.filename] = {
-                "id": id,
-                "url": url
-            }
-            publish_log.seek(0)
-            publish_log.truncate()
-            publish_log.write(JSON.dumps(contents, indent=2))
+        with shelve.open("publish_log") as publish_log:
+            publish_log[self.filename] = id
 
 
 def main():
-    articles = get_articles()
+    articles = glob.glob(os.path.join(os.path.dirname(__file__), "*.md"))
+
+    for i in range(len(articles)):
+        articles[i] = os.path.basename(articles[i])
+
+    articles.sort()
     article_file = ""
+
     while article_file not in articles:
         terminal_menu = TerminalMenu(articles, title="Select an article to publish:")
         menu_entry_index = terminal_menu.show()
         article_file = articles[menu_entry_index]
+
     article = Article(article_file=article_file)
     article.publish_to_dev()
-
-
-def get_articles():
-    articles = glob.glob(os.path.join(os.path.dirname(__file__), "*.md"))
-    for i in range(len(articles)):
-        articles[i] = os.path.basename(articles[i])
-    articles.sort()
-    return articles
 
 if __name__=="__main__":
     main()

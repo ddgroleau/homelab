@@ -1,0 +1,13 @@
+ansible-runner==2.4.2
+certifi==2026.2.25
+charset-normalizer==3.4.4
+idna==3.11
+lockfile==0.12.2
+packaging==26.0
+pexpect==4.9.0
+ptyprocess==0.7.0
+python-daemon==3.1.2
+PyYAML==6.0.3
+requests==2.32.5
+simple-term-menu==1.6.6
+urllib3==2.6.3

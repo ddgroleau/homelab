@@ -20,11 +20,11 @@ I embarked on my journey a few weeks ago, hoping to achieve a personal (albeit n
 
 ### Introduction
 
-I am a full-time software engineer, whose main craft has been web-application development. However, in my free-time, I've always sought out Infrastructure and DevOps related projects: building desktops and laptops from scratch, running containers in the cloud, building complex CI/CD pipelines, and writing automations & command line utilities.
+I am a full-stack software engineer, whose trade has been web-application development. However, in my free-time, I've always sought out Infrastructure and DevOps related projects: building desktops and laptops from scratch, running containers in the cloud, building complex CI/CD pipelines, and writing automations & command line utilities.
 
 I felt like this project was the next logical step: I've torn down and rebuilt the old computers in my house numerous times; I'm running a production Kubernetes cluster in the cloud on the [Linode Kubernetes Engine](https://techdocs.akamai.com/cloud-computing/docs/linode-kubernetes-engine); I've installed most of the popular Linux distributions on desktops and laptops, including Arch from scratch (I use Arch btw 😉). A Kubernetes homelab to me seemed to tie this experience together in something challenging and tangible.
 
-I am far from a DevOps, SysAdmin, or Infrastructure expert, I discovered many tools along the way and have learned a lot so far. If you identify something in my process that I could have done better, or have recommendations for me, feel free to react out to me via [email](mailto:ddgroleau.developer@gmail.com).
+I am far from a DevOps, SysAdmin, or Infrastructure expert, I discovered many tools along the way and have learned a lot so far. If you identify something in my process that I could have done better, or have recommendations for me, feel free to reach out to me via [email](mailto:ddgroleau.developer@gmail.com).
 
 <hr>
 
@@ -36,7 +36,7 @@ I am far from a DevOps, SysAdmin, or Infrastructure expert, I discovered many to
 
 A few desktop cases; a plastic bin with motherboards, graphics cards, RAM sticks, HDDs; a few old laptops and an old chromebook. This was my initial collection of "spare parts" I found to start my homelab journey.
 
-I started by building two desktops with the spare parts I had, and found a third in working order. The laptops and chromebook were all in working shape; I had one HP machine that I had suped-up with a new motherboard and upgraded RAM last summer. After pulling apart these machines so many times throughout the years, I had to do a bit of ad-hoc electrical work to get some of them running.
+I started by building two desktops with the spare parts I had, and found a third desktop in working order. The three laptops and chromebook were all in working shape; I had one HP laptop that I had upgraded with new motherboard and RAM bought from eBay last summer. After pulling apart these machines so many times throughout the years, I had to do a bit of ad-hoc electrical work to get some of them running.
 
 At this point, I had seven machines; three desktops, three laptops and a chromebook.
 
@@ -54,7 +54,7 @@ The goal of this step was to get each machine in a state where I could SSH into 
 
 I did decide at this point to abandon the chromebook. The installation media was built for x86-64 (amd64), and the Chromebook uses an ARM architecture CPU, requiring a different image and potentially additional bootloader configuration (but I did try wholeheartedly to install Arch Linux on it instead, using an ARM ISO).
 
-One thing I learned along the way is the importance of static IPs: some of my machines dynamically re-addressed their IPs, which caused me to have to log back into them manually, find the network interface card (NIC) IP address, and update the `/etc/hosts` config on my development laptop (I run Pop!\_OS as my daily driver). I ended up setting static IPs at the OS level on all machines.
+One thing I learned along the way is the importance of static IPs: some of my machines dynamically re-addressed their IPs, which caused me to have to log back into them manually, find the network interface card (NIC) IP address, and update the `/etc/hosts` config on my development laptop. I ended up setting static IPs at the OS level on all machines.
 
 At this point I had six machines, ready to go. Specs below:
 
@@ -99,7 +99,7 @@ Once I ran the final version of my Ansible playbook, I began running a series of
 
 The cluster is running in my home office on my server rack (some repurposed metal shelving 😉), and my wife reminds me about the electricity bill whenever she walks by.
 
-I am working now on networking and security configuration and provisioning within the cluster, and aim to write all coming Infrastructure as Code (IaC) in [Terraform](https://developer.hashicorp.com/terraform).
+I am working now on networking & security configuration and provisioning within the cluster, and aim to write all coming Infrastructure as Code (IaC) in [Terraform](https://developer.hashicorp.com/terraform).
 
 _You can find the GitHub repository for this project [here](https://github.com/ddgroleau/homelab)._
 
