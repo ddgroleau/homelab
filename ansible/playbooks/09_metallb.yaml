@@ -1,0 +1,26 @@
+- name: Ensure kube-proxy strictARP is enabled for MetalLB
+  hosts: master
+  become: true
+
+  tasks:
+    - name: Dry Run - Show Diff
+      changed_when: false
+      ansible.builtin.shell: >
+        kubectl get configmap kube-proxy -n kube-system -o yaml |
+        sed -e "s/strictARP: false/strictARP: true/" |
+        kubectl diff -f - -n kube-system
+      register: diff_result
+      ignore_errors: true
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Apply strictARP change if needed
+      when: diff_result.rc != 0
+      changed_when: false
+      ansible.builtin.shell: >
+        set -o pipefail &&
+        kubectl get configmap kube-proxy -n kube-system -o yaml |
+        sed -e "s/strictARP: false/strictARP: true/" |
+        kubectl apply -f - -n kube-system
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf

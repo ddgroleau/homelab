@@ -1,0 +1,30 @@
+- name: Deploy ArgoCD applications
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    kubeconfig_path: "{{ lookup('ansible.builtin.env','HOME') + '/.kube/config' }}"
+    kube_context: "kubernetes-admin@kubernetes"
+    app_file: "../../argocd/applications/01_application-metallb.yaml"
+    ip_pool_file: "../../argocd/manifests/metallb/ipaddresspool.yaml"
+
+  tasks:
+    - name: Ensure correct kube context
+      ansible.builtin.shell: |
+        kubectl config use-context {{ kube_context }} --kubeconfig {{ kubeconfig_path }}
+      register: context_result
+      failed_when: context_result.rc != 0 and "already" not in context_result.stderr
+      changed_when: false
+
+    - name: Apply MetalLB ArgoCD Application
+      ansible.builtin.shell: |
+        kubectl apply -f {{ app_file }} -n argocd --kubeconfig {{ kubeconfig_path }} --context {{ kube_context }}
+      register: apply_result
+      changed_when: "'configured' in apply_result.stdout or 'created' in apply_result.stdout"
+
+    - name: Apply MetalLB IPAdressPool and L2Advertisement
+      ansible.builtin.shell: |
+        kubectl apply -f {{ ip_pool_file }} -n metallb-system --kubeconfig {{ kubeconfig_path }} --context {{ kube_context }}
+      register: apply_result
+      changed_when: "'configured' in apply_result.stdout or 'created' in apply_result.stdout"
