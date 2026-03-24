@@ -28,7 +28,11 @@ provider "helm" {
 }
 
 module "kubernetes" {
-  source   = "./modules/kubernetes"
+  source = "./modules/kubernetes"
+
   tls_cert = var.tls_cert
   tls_key  = var.tls_key
+
+  traefik_dashboard_username = var.traefik_dashboard_username
+  traefik_dashboard_password = var.traefik_dashboard_password
 }

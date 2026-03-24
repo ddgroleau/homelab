@@ -32,7 +32,7 @@ resource "helm_release" "argocd" {
 resource "kubernetes_secret_v1" "tls" {
   metadata {
     name      = "local-selfsigned-tls"
-    namespace = local.traefik_name
+    namespace = "default"
   }
 
   data = {
@@ -43,4 +43,16 @@ resource "kubernetes_secret_v1" "tls" {
   type = "kubernetes.io/tls"
 }
 
+resource "kubernetes_secret_v1" "dashboard_auth" {
+  metadata {
+    name      = "dashboard-auth-secret"
+    namespace = "default"
+  }
 
+  data = {
+    username = var.traefik_dashboard_username
+    password = var.traefik_dashboard_password
+  }
+
+  type = "kubernetes.io/basic-auth"
+}

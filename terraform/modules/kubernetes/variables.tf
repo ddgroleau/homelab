@@ -9,3 +9,15 @@ variable "tls_key" {
   type        = string
   sensitive   = true
 }
+
+variable "traefik_dashboard_username" {
+  description = "The Traefik dashboard username"
+  type        = string
+  sensitive   = true
+}
+
+variable "traefik_dashboard_password" {
+  description = "The Traefik dashboard password"
+  type        = string
+  sensitive   = true
+}

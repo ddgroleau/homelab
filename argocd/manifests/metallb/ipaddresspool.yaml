@@ -5,8 +5,8 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.7.223 # Worker02
-    - 192.168.4.55 # Worker03
+    - 192.168.7.223/32 # Worker02
+  autoAssign: true
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
