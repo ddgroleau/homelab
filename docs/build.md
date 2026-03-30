@@ -28,7 +28,11 @@
 
 1. (TERRAFORM) Installed argocd using Terraform.
 2. (BASH) Created self-signed TLS cert for cluster using bash.
-3. (TERRAFORM) Create Kubernetes TLS secret with self-signed cert using Terraform.
-4. (ANSIBLE) Update kube-proxy ConfigMap to comply with MetalLB prerequisites
-5. (TERRAFORM) Create namespace for MetalLB
-6. (ANSIBLE) Create ArgoCD application for MetalLB, apply manifests for IPAdressPools and L2Advertisements
+3. (TERRAFORM) Created Kubernetes TLS secret with self-signed cert using Terraform.
+4. (ANSIBLE) Updated kube-proxy ConfigMap to comply with MetalLB prerequisites.
+5. (TERRAFORM) Created namespace for MetalLB.
+6. (ANSIBLE) Created ArgoCD application for MetalLB, applied manifests for IPAdressPools and L2Advertisements, configuring single static IP for load balancing.
+7. (TERRAFORM) Created K8s secrets for Traefik dashboard authentication and local TLS.
+8. (ANSIBLE) Created ArgoCD application for Traefik, applied manifests for HTTPRoute and ReferenceGrant to expose ArgoCD dashboard.
+9. (ANSIBLE) Created ArgoCD application for Kube-Prometheus Stack (Prometheus, Grafana & AlertManager) to enable telemetry, monitoring, and observability.
+10. (ANSIBLE) Updated UFW Firewall playbook to ensure ports for HTTP Traffic, Calico processes, and Prometheus Node Exporter are open.

@@ -1,0 +1,16 @@
+- name: Deploy Prometheus Stack via ArgoCD
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    kubeconfig_path: "{{ lookup('ansible.builtin.env','HOME') + '/.kube/config' }}"
+    kube_context: "kubernetes-admin@kubernetes"
+    kube_prom_file: "../../argocd/applications/03_application-prometheus.yaml"
+
+  tasks:
+    - name: Apply Kubernetes Prometheus ArgoCD Application
+      ansible.builtin.shell: |
+        kubectl apply -f {{ kube_prom_file }} -n argocd --kubeconfig {{ kubeconfig_path }} --context {{ kube_context }}
+      register: apply_result
+      changed_when: "'configured' in apply_result.stdout or 'created' in apply_result.stdout"

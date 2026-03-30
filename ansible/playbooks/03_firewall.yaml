@@ -17,26 +17,34 @@
   hosts: master
   become: true
   tasks:
-    - name: UFW - Allow TCP ports 6443, 2379-2380, 10250, 10259, 10257
+    # 6443, 2379-2380, 10250, 10259, 10257 for K8s
+    # 179 for Calico BGP, 5473 for Calico Typha
+    # 9100 for Prometheus Node Exporter
+    - name: UFW - Allow TCP ports 6443, 2379-2380, 10250, 10259, 10257, 179, 5473, 9100
       community.general.ufw:
         rule: allow
-        port: "6443,2379:2380,10250,10259,10257"
+        port: "6443,2379:2380,10250,10259,10257,179,5473,9100"
         proto: tcp
 
 - name: Open TCP Ports on Worker Nodes
   hosts: workers
   become: true
   tasks:
-    - name: UFW - Allow TCP ports 10250, 10256, 30000-32767
+    # 10250, 10256, 30000-32767 for K8s
+    # 179 for Calico BGP, 5473 for Calico Typha
+    # 80 and 443 for Traefik
+    # 9100 for Prometheus Node Exporter
+    - name: UFW - Allow TCP ports 10250, 10256, 30000-32767, 179, 5473, 80, 443, 9100
       community.general.ufw:
         rule: allow
-        port: "10250,30000:32767"
+        port: "10250,10256,30000:32767,179,5473,80,443,9100"
         proto: tcp
 
 - name: Open UDP Ports on Worker Nodes
   hosts: workers
   become: true
   tasks:
+    # 30000-32767 for K8s
     - name: UFW - Allow UDP ports 30000-32767
       community.general.ufw:
         rule: allow

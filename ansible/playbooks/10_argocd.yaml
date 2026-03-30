@@ -38,12 +38,6 @@
       register: apply_result
       changed_when: "'configured' in apply_result.stdout or 'created' in apply_result.stdout"
 
-    # - name: Install Kubernetes Gateway API CRDs
-    #   ansible.builtin.shell: |
-    #     kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.0/standard-install.yaml
-    #   register: gateway_crds
-    #   changed_when: false
-
     - name: Expose ArgoCD Dashboard via Traefik HTTPRoute
       ansible.builtin.shell: |
         kubectl apply -f {{ argocd_http_route_file }} -n default --kubeconfig {{ kubeconfig_path }} --context {{ kube_context }}
